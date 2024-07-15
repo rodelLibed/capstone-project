@@ -1,0 +1,246 @@
+#include <LiquidCrystal_I2C.h>
+#include <Wire.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
+
+LiquidCrystal_I2C lcd(0x27, 16,4);
+#include "DHT.h"
+#define DHTPIN D4
+
+#define DHTTYPE DHT11
+
+
+DHT dht(DHTPIN, DHTTYPE);
+
+
+
+const char* ssid = "PLDTHOMEFIBR7CqCC";
+const char* password = "const=Godisgood_12;";
+
+String server =  "http://ash.online/farm/sensordata";
+String servers =  "http://ash.online/farm/read";
+int soil_baseline= 0; // Soil Sensor input at Analog PIN A0
+#define connecting D5
+#define connected D3
+#define error D7
+#define buzz D6
+#define relay D8
+
+
+int sense_Pin= 0; // Soil Sensor input at Analog PIN A0
+int value= 0;
+void setup() {
+  Serial.begin(115200);
+  
+  //set the led light indicators
+  pinMode(connecting, OUTPUT);
+  pinMode(connected, OUTPUT);
+  pinMode(error, OUTPUT);
+  pinMode(buzz, OUTPUT);
+  pinMode(relay,OUTPUT);
+  digitalWrite(relay,HIGH);
+  light_all(connecting,connected,error);
+  lights_off(connecting,connected,error);
+  lcd.init();
+  lcd.backlight();
+  WiFi.begin(ssid, password);
+    while(WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    connecting_sound(buzz);
+    connect_light(connecting);
+     lcd.setCursor(0,0);
+    lcd.print("Connecting to SSID");
+    lcd.setCursor(0,1);
+    lcd.print("CCSICT ROUTER");
+    lcd.setCursor(0,2);
+    lcd.print("redirecting to site");
+    lcd.setCursor(0,3);
+    lcd.print("SMART AGRICULTURE");
+    delay(500);
+  }
+  is_connected(buzz);
+  Serial.println("Connected to the Server!");
+  lcd.clear();
+   lcd.setCursor(0,0);
+    lcd.print("SUCCESSFULLY");
+    lcd.setCursor(0,1);
+    lcd.print("CONNECTED TO");
+    lcd.setCursor(0,2);
+    lcd.print("IOT-BASED SMART");
+    lcd.setCursor(0,3);
+    lcd.print("AGRICULTURE");
+    delay(1000);
+    digitalWrite(connected,HIGH);
+}
+
+
+void loop() {
+value= analogRead(sense_Pin);
+   value= value/10;
+   float h =  dht.readHumidity();
+   
+ float t = dht.readTemperature();
+ float hic = dht.readTemperature(true);
+
+ Serial.println(h);
+ Serial.println(t);
+ Serial.println(hic);
+ 
+Serial.println(h);
+    
+   Serial.println(value);
+   display_lcd(value);
+     WiFiClient client;
+              HTTPClient http;
+  if(WiFi.status() == WL_CONNECTED) {
+   
+           
+              // Your Domain name with URL path or IP address with path
+             // Your Domain name with URL pa
+             //th or IP address with path
+              http.begin(client, servers.c_str());
+              
+              // Send HTTP GET request
+              int httpResponseCode = http.GET();
+              
+              if (httpResponseCode>0) { 
+                Serial.print("HTTP Response code: 333 ");
+                Serial.println(httpResponseCode);
+                String payloads = http.getString();
+                Serial.println(payloads);
+                soil_baseline = payloads.toInt();
+                  Serial.print("Last Soils : ");
+                Serial.println(soil_baseline);
+                //turn-in the relay here
+                digitalWrite(relay,HIGH);
+                if(value>=soil_baseline){
+                  Serial.println("Relay On");
+                  digitalWrite(relay,LOW);
+                 String serversss =  "http://ash.online/farm/send_notification";
+                  http.begin(client, serversss.c_str());
+                  int httpResponseCodess = http.GET();
+              
+              if (httpResponseCodess>0) {
+                 Serial.println("SMS CODE");
+              }
+             
+                }
+                else{
+                  Serial.println("Relay Off");
+                  digitalWrite(relay,HIGH);
+                }
+              }
+      String serverName = server + "?sensor_humid=" + h + "&sensor_temp=" + t + "&sensor_heat=" + hic + "&sensor_moisture=" + value;
+              delay(2000);
+              // Your Domain name with URL path or IP address with path
+             
+              http.begin(client, serverName.c_str());
+              
+              // Send HTTP GET request
+              int httpResponseCodess = http.GET();
+              
+              if (httpResponseCodess>0) { 
+                Serial.print("HTTP Response code: SEND ");
+                Serial.println(httpResponseCodess);
+                String payload = http.getString();
+                Serial.println(payload);
+               
+              }
+     
+     
+              delay(2000);
+              // Your Domain name with URL path or IP address with path
+              http.begin(client, serverName.c_str());
+              int httpResponseCodes = http.GET();
+              // Send HTTP GET request
+                 if (httpResponseCodes>0) {
+                   display_message("SENSOR DATA HAS","BEEN SUCCESSFULLY","TRANSMITTED TO THE","SERVER");
+                    Serial.print("HTTP Response code 12345: ");
+                    Serial.println(httpResponseCodes);
+                    String payloads = http.getString();
+                    Serial.println(payloads);
+                  
+                  }
+                  else {
+                    Serial.print("Error code: ");
+                    Serial.println(httpResponseCodes);
+                    lcd.clear();
+                    lcd.setCursor(0,0);
+                    lcd.print("CONNECTION ERROR");
+                    lcd.setCursor(0,1);
+                    lcd.print("DEBUG NEEDED");
+                  }
+                  delay(2000);
+  }
+  else{
+    error_sound(buzz);
+    error_ligt(connecting, connected,error);
+  }
+    delay(2000);
+}
+
+
+void light_all(int a, int b, int c){
+  digitalWrite(a,HIGH);
+  digitalWrite(b,HIGH);
+  digitalWrite(c,HIGH);
+  delay(1000);
+}
+void error_ligt(int a, int b, int c){
+  digitalWrite(a,LOW);
+  digitalWrite(b,LOW);
+  digitalWrite(c,HIGH);
+  delay(1000);
+}
+void
+ lights_off(int a, int b, int c){
+  digitalWrite(a,LOW);
+  digitalWrite(b,LOW);
+  digitalWrite(c,LOW);
+  delay(1000);
+}
+void connect_light(int connecting){
+  digitalWrite(connecting,HIGH);
+  delay(300);
+  digitalWrite(connecting,LOW);
+}
+void connecting_sound(int buzz){
+  tone(buzz,1000);
+  delay(500);
+  noTone(buzz);
+}
+void error_sound(int buzz){
+  tone(buzz,1000);
+  delay(500);
+  noTone(buzz);
+}
+void is_connected(int buzzz){
+  tone(buzzz,1000);
+  delay(100);
+  tone(buzzz,2000);
+  delay(100);
+  tone(buzzz,3000);
+  delay(100);
+  noTone(buzzz);
+}
+
+void display_lcd(int sm){
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("TODAY'S READING :");
+    lcd.setCursor(0,1);
+    lcd.print("SOIL MOISTURE :");
+    lcd.print(sm);
+}
+void display_message(String a,String b, String c, String d){
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print(a);
+    lcd.setCursor(0,1);
+    lcd.print(b);
+    lcd.setCursor(0,2);
+    lcd.print(c);
+    lcd.setCursor(0,3);
+    lcd.print(d);
+}
